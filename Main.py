@@ -35,7 +35,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from reportlab.lib.enums import TA_CENTER  # Import for text alignment
 from selenium.common.exceptions import TimeoutException
 from selenium_stealth import stealth
+from selenium.common.exceptions import NoSuchElementException
 
+
+#from flask import Flask
+#from flask_cors import CORS
+
+import sys
+print("Python interpreter:", sys.executable)
+print("Python version:", sys.version)
 
 
 
@@ -393,17 +401,19 @@ def get_page(keyword):
 
     return medicine_name
 
+#CORS(app)
 
 
 # Functions for Pubmed website
 
 
-def get_Benefits_Risks(keyword,max_results=5):
+def get_Benefits_Risks(keyword,max_results):
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
     #chrome_options.add_argument('--headless')
-    
+    found_link = False
+
     driver = webdriver.Chrome(service=service,options=chrome_options)
      
 # Navigate to the search page
@@ -446,15 +456,23 @@ def get_Benefits_Risks(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
 
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                
+                print(f"Full text link not found for article {i}: {e}")
+                
+            finally:   
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -462,9 +480,16 @@ def get_Benefits_Risks(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+   
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_Benefits_Risks(links):
+    if "error" in links:
+        return links 
     # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -523,7 +548,7 @@ def scrape_Benefits_Risks(links):
     driver.quit()
     return url_to_paragraphs
 
-def get_Marketing_Experience(keyword,max_results=5):
+def get_Marketing_Experience(keyword,max_results):
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
@@ -559,7 +584,7 @@ def get_Marketing_Experience(keyword,max_results=5):
     for i in range(1, max_results + 2):
         try:
              # Wait for the search results to be loaded
-            
+            found_link = False
             # Construct the CSS selector for the specific search result
             result_selector = f'#search-results > section > div.search-results-chunks > div > article:nth-child({i}) a'
             search_result = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, result_selector)))
@@ -571,15 +596,20 @@ def get_Marketing_Experience(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
-
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                print(f"Full text link not found for article {i}: {e}")
+            finally:
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -587,9 +617,15 @@ def get_Marketing_Experience(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_Marketing_Experience(links):
+    if "error" in links:
+        return links 
     # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -648,7 +684,7 @@ def scrape_Marketing_Experience(links):
     driver.quit()
     return url_to_paragraphs
 
-def get_Overview_of_Safety(keyword,max_results=5):
+def get_Overview_of_Safety(keyword,max_results):
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
@@ -658,7 +694,7 @@ def get_Overview_of_Safety(keyword,max_results=5):
      
 # Navigate to the search page
     driver.get('https://pubmed.ncbi.nlm.nih.gov/')
-
+    found_link = False
     stealth(driver,
         languages=["en-US", "en"],
         vendor="Google Inc.",
@@ -696,15 +732,20 @@ def get_Overview_of_Safety(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
-
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                print(f"Full text link not found for article {i}: {e}")
+            finally:    
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -712,9 +753,15 @@ def get_Overview_of_Safety(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_Overview_of_Safety(links):
+    if "error" in links:
+        return links 
     # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -773,12 +820,12 @@ def scrape_Overview_of_Safety(links):
     driver.quit()
     return url_to_paragraphs
 
-def get_Clinical_Studies(keyword,max_results=5):
+def get_Clinical_Studies(keyword,max_results):
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
     #chrome_options.add_argument('--headless')
-    
+    found_link = False
     driver = webdriver.Chrome(service=service,options=chrome_options)
      
 # Navigate to the search page
@@ -821,15 +868,20 @@ def get_Clinical_Studies(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
-
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                print(f"Full text link not found for article {i}: {e}")
+            finally:    
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -837,9 +889,15 @@ def get_Clinical_Studies(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_Clinical_Studies(links):
+    if "error" in links:
+        return links 
     # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -898,12 +956,12 @@ def scrape_Clinical_Studies(links):
     driver.quit()
     return url_to_paragraphs
 
-def get_Overview_of_Efficacy(keyword,max_results=5):
+def get_Overview_of_Efficacy(keyword,max_results):
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
     #chrome_options.add_argument('--headless')
-    
+    found_link = False
     driver = webdriver.Chrome(service=service,options=chrome_options)
      
 # Navigate to the search page
@@ -946,15 +1004,20 @@ def get_Overview_of_Efficacy(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
-
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                print(f"Full text link not found for article {i}: {e}")
+            finally:
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -962,9 +1025,15 @@ def get_Overview_of_Efficacy(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_Overview_of_Efficacy(links):
+    if "error" in links:
+        return links 
     # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -1023,14 +1092,14 @@ def scrape_Overview_of_Efficacy(links):
     driver.quit()
     return url_to_paragraphs
 
-def get_Pharmacodynamics_Drug_Interaction(keyword,max_results=5):
+def get_Pharmacodynamics_Drug_Interaction(keyword,max_results):
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
     #chrome_options.add_argument('--headless')
     
     driver = webdriver.Chrome(service=service,options=chrome_options)
-     
+    found_link = False 
 # Navigate to the search page
     driver.get('https://pubmed.ncbi.nlm.nih.gov/')
 
@@ -1072,15 +1141,20 @@ def get_Pharmacodynamics_Drug_Interaction(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
-
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                print(f"Full text link not found for article {i}: {e}")
+            finally:
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -1088,9 +1162,15 @@ def get_Pharmacodynamics_Drug_Interaction(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_Pharmacodynamics_Drug_Interaction(links):
+    if "error" in links:
+        return links 
 # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -1149,9 +1229,9 @@ def scrape_Pharmacodynamics_Drug_Interaction(links):
     driver.quit()
     return url_to_paragraphs
 
-def get_Pharmacodynamics_page(keyword,max_results=5):
+def get_Pharmacodynamics_page(keyword,max_results):
 
-    
+    found_link = False
     # Set up the Chrome driver
     service = Service(ChromeDriverManager().install())
     chrome_options = webdriver.ChromeOptions()
@@ -1200,15 +1280,20 @@ def get_Pharmacodynamics_page(keyword,max_results=5):
 
 
             # (Logic to navigate to each article's page)
-            
+            try:
             # Extract the full-text link
-            full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
-
-            full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
-            full_text_links.append(full_text_link)
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-
+                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
+                full_text_links.append(full_text_link)
+                found_link = True
+            except Exception as e:
+                print(f"Full text link not found for article {i}: {e}")
+            finally:
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+        except NoSuchElementException:
+            # Handle the case where the element is not found
+            print(f"Full text link not found for article {i}")
         except Exception as e:
             print(f"Error processing article {i}: {e}")
             driver.switch_to.window(driver.window_handles[0])
@@ -1216,9 +1301,15 @@ def get_Pharmacodynamics_page(keyword,max_results=5):
             continue
     
     driver.quit()
-    return full_text_links
+    if not found_link:
+        # Return a dictionary with a message indicating no articles found
+        return {"error": "Articles not found"}
+    else:
+        return {link: None for link in full_text_links} if full_text_links else {"error": "Articles not found"}
 
 def scrape_pharmacodynamic(links):
+    if "error" in links:
+        return links 
     # Initialize the web driver
     service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
@@ -1295,9 +1386,9 @@ def wait_for_page_load(driver, timeout=30):
     except TimeoutException:
         print("Page did not load within the specified timeout")
 
-def get_Pubmed(keyword,max_results=5):
+def get_Pubmed(keyword,max_results):
 
-    Pharmacodynamics_links = get_Pharmacodynamics_page(keyword, max_results=5)
+    Pharmacodynamics_links = get_Pharmacodynamics_page(keyword, max_results)
     scraped_data = scrape_pharmacodynamic(Pharmacodynamics_links)
     Pharmacodynamics_str = ""
 
@@ -1305,7 +1396,7 @@ def get_Pubmed(keyword,max_results=5):
         paragraphs_str = ". ".join(paragraphs)
         Pharmacodynamics_str += f"URL: {url}\n\n Paragraphs: {paragraphs_str}\n\n"
         
-    Pharmacodynamics_Drug_Interaction_links = get_Pharmacodynamics_Drug_Interaction(keyword, max_results=5)
+    Pharmacodynamics_Drug_Interaction_links = get_Pharmacodynamics_Drug_Interaction(keyword, max_results)
     scraped_data = scrape_Pharmacodynamics_Drug_Interaction(Pharmacodynamics_Drug_Interaction_links)
     Pharmacodynamics_Drug_Interaction_page_str = ""
 
@@ -1313,7 +1404,7 @@ def get_Pubmed(keyword,max_results=5):
         paragraphs_str = ". ".join(paragraphs)
         Pharmacodynamics_Drug_Interaction_page_str += f"URL: {url} \n\n Paragraphs: {paragraphs_str}\n\n"
        
-    Overview_of_Efficacy_links = get_Overview_of_Efficacy(keyword, max_results=5)
+    Overview_of_Efficacy_links = get_Overview_of_Efficacy(keyword, max_results)
     scraped_data = scrape_Overview_of_Efficacy(Overview_of_Efficacy_links)
     Overview_of_Efficacy_str = ""
 
@@ -1321,7 +1412,7 @@ def get_Pubmed(keyword,max_results=5):
         paragraphs_str = ". ".join(paragraphs)
         Overview_of_Efficacy_str += f"URL: {url} \n\n Paragraphs: {paragraphs_str}\n\n"
 
-    Clinical_Studies_links = get_Clinical_Studies(keyword, max_results=5)
+    Clinical_Studies_links = get_Clinical_Studies(keyword, max_results)
     scraped_data = scrape_Clinical_Studies(Clinical_Studies_links)
     Clinical_Studies_str = ""
 
@@ -1329,7 +1420,7 @@ def get_Pubmed(keyword,max_results=5):
         paragraphs_str = ". ".join(paragraphs)
         Clinical_Studies_str += f"URL: {url} \n\n Paragraphs: {paragraphs_str}\n\n"
 
-    Overview_of_Safety_links = get_Overview_of_Safety(keyword, max_results=5)
+    Overview_of_Safety_links = get_Overview_of_Safety(keyword, max_results)
     scraped_data = scrape_Overview_of_Safety(Overview_of_Safety_links)
     Overview_of_Safety_str = ""
 
@@ -1337,7 +1428,7 @@ def get_Pubmed(keyword,max_results=5):
         paragraphs_str = ". ".join(paragraphs)
         Overview_of_Safety_str += f"URL: {url} \n\n Paragraphs: {paragraphs_str}\n\n"
     
-    Marketing_Experience_links = get_Marketing_Experience(keyword, max_results=5)
+    Marketing_Experience_links = get_Marketing_Experience(keyword, max_results)
     scraped_data = scrape_Marketing_Experience(Marketing_Experience_links)
     Marketing_Experience_str = ""
 
@@ -1345,7 +1436,7 @@ def get_Pubmed(keyword,max_results=5):
         paragraphs_str = ". ".join(paragraphs)
         Marketing_Experience_str += f"URL: {url} \n\n Paragraphs: {paragraphs_str}\n\n"
     
-    Benefits_Risks_links = get_Benefits_Risks(keyword, max_results=5)
+    Benefits_Risks_links = get_Benefits_Risks(keyword, max_results)
     scraped_data = scrape_Benefits_Risks(Benefits_Risks_links)
     Benefits_Risks_str = ""
 
@@ -1394,17 +1485,37 @@ def send_email_to_admin(admin_user, new_user):
     mail.send(msg)
 
 
+
 #URL
+@app.before_request
+def before_request_func():
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+    else:
+        response = app.response_class()
+    
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response if request.method == 'OPTIONS' else None   
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    return response 
+
 # Adding Scrapping results to database
-@app.route('/molecule/<int:user_id>', methods=['POST'])
-def molecule_data(user_id):
+@app.route('/molecule/<int:user_id>/<int:max_results>', methods=['POST'])
+def molecule_data(user_id,max_results):
 
 
     try:
         data = request.get_json()
         keyword = data.get("keyword")
         results = get_page(keyword)
-        results2 = get_Pubmed(keyword)
+        results2 = get_Pubmed(keyword, max_results)
 
         if results == "No results found.": 
             return jsonify({"message": "No results found"}), 404
@@ -1475,7 +1586,7 @@ def molecule_data(user_id):
 
 # Adding pubmed data to database
 @app.route('/pubmed/<int:molecule_id>', methods=['POST'])
-def add_pubmed_data(molecule_id):
+def add_pubmed_data(molecule_id,max_results):
 
     # Check if the Molecule exists for the given ID
     molecule = Molecule.query.get(molecule_id)
@@ -1486,7 +1597,7 @@ def add_pubmed_data(molecule_id):
     keyword = molecule.keyword
 
     # Call the get_Pubmed function with the keyword from the Molecule record
-    results2 = get_Pubmed(keyword)
+    results2 = get_Pubmed(keyword, max_results)
 
     # Check if Pubmed data already exists for the given Molecule
     pubmed = Pubmed.query.filter_by(molecule_id=molecule.id).first()

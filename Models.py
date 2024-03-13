@@ -7,7 +7,8 @@ from enum import Enum
 from sqlalchemy import Enum as SQLAlchemyEnum
 import bcrypt 
 from config import *
-
+from reportlab.platypus import Flowable
+from reportlab.lib.colors import blue
 
 app = Flask(__name__)
 app.secret_key = "fachfouch"
@@ -34,7 +35,7 @@ class Molecule(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     keyword = db.Column(db.String(100), nullable=False)
-    user_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     date_of_creation = db.Column(db.DateTime, nullable=False)
 
 class Pubchem(db.Model):
@@ -144,3 +145,19 @@ class User(db.Model):
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
         return hashed_password.decode('utf-8')  # Ensure the hashed password is a string
     
+
+class Hyperlink(Flowable):
+    """A custom flowable to include clickable hyperlinks in a ReportLab PDF."""
+    def __init__(self, url, text, fontsize=12, textcolor=blue):
+        Flowable.__init__(self)
+        self.url = url
+        self.text = text
+        self.fontsize = fontsize
+        self.textcolor = textcolor
+
+    def draw(self):
+        """Draw the flowable onto the canvas."""
+        self.canv.setFont("Helvetica", self.fontsize)
+        self.canv.setFillColor(self.textcolor)
+        self.canv.drawString(0, 0, self.text)
+        self.canv.linkURL(self.url, (0, -4, self.canv.stringWidth(self.text, "Helvetica", self.fontsize), self.fontsize + 3), relative=1)
