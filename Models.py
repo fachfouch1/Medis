@@ -37,6 +37,14 @@ class Molecule(db.Model):
     keyword = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     date_of_creation = db.Column(db.DateTime, nullable=False)
+    pubchem = db.relationship('Pubchem', back_populates='molecule', uselist=False)
+    pubmed = db.relationship('Pubmed', back_populates='molecule', uselist=False)
+    user = db.relationship('User', backref='molecules')
+
+    def __init__(self,keyword,date_of_creation,user_id) :
+        self.keyword = keyword
+        self.date_of_creation = date_of_creation
+        self.user_id = user_id
 
 class Pubchem(db.Model):
     __tablename__ = 'pubchem'
@@ -54,7 +62,9 @@ class Pubchem(db.Model):
     decomposition = db.Column(db.String(10000), nullable=False)
     half_life = db.Column(db.String(10000), nullable=False)
     reactivity = db.Column(db.String(10000), nullable=False)
-    molecule_id = db.Column(db.Integer, db.ForeignKey('molecule.id'))
+    molecule_id = db.Column(db.Integer, db.ForeignKey('molecule.id'))    
+    molecule = db.relationship('Molecule', back_populates='pubchem')
+
     image_url = db.Column(db.String(1000))
 
 
@@ -89,7 +99,8 @@ class Pubmed(db.Model):
     Marketing_Experience = db.Column(db.String(10000), nullable=False)
     Benefits_Risks = db.Column(db.String(10000), nullable=False)
     molecule_id = db.Column(db.Integer, db.ForeignKey('molecule.id'))
-
+    molecule = db.relationship('Molecule', back_populates='pubmed')
+    
     def __init__(self,Pharmacodynamics, Pharmacodynamics_Drug_Interaction_page, Overview_of_Efficacy, Clinical_Studies, Overview_of_Safety, Marketing_Experience, Benefits_Risks,molecule_id):
         self.Pharmacodynamics = Pharmacodynamics
         self.Pharmacodynamics_Drug_Interaction_page = Pharmacodynamics_Drug_Interaction_page
@@ -121,6 +132,7 @@ class User(db.Model):
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     address = db.Column(db.String(200)) 
+    
 
 
     def __init__(self, username, password,email, role, status = False ,phone_number=None, first_name=None, last_name=None, address=None):

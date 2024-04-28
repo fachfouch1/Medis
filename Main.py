@@ -14,8 +14,8 @@ import traceback
 import os
 from bs4 import BeautifulSoup, Tag
 from Models import Molecule
-from Models import Pubchem
 from Models import Pubmed
+from Models import Pubchem
 from Models import User
 from Models import db
 from Models import app
@@ -36,6 +36,12 @@ from reportlab.lib.enums import TA_CENTER  # Import for text alignment
 from selenium.common.exceptions import TimeoutException
 from selenium_stealth import stealth
 from selenium.common.exceptions import NoSuchElementException
+import bcrypt
+from flask_bcrypt import Bcrypt
+
+
+
+bcrypt = Bcrypt(app)
 
 
 #from flask import Flask
@@ -458,7 +464,7 @@ def get_Benefits_Risks(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
 
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
@@ -598,7 +604,7 @@ def get_Marketing_Experience(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
                 found_link = True
@@ -734,7 +740,7 @@ def get_Overview_of_Safety(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
                 found_link = True
@@ -870,7 +876,7 @@ def get_Clinical_Studies(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
                 found_link = True
@@ -1006,7 +1012,7 @@ def get_Overview_of_Efficacy(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
                 found_link = True
@@ -1143,7 +1149,7 @@ def get_Pharmacodynamics_Drug_Interaction(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
                 found_link = True
@@ -1282,7 +1288,7 @@ def get_Pharmacodynamics_page(keyword,max_results):
             # (Logic to navigate to each article's page)
             try:
             # Extract the full-text link
-                full_text_link_selector = '#article-page > aside > div > div.full-text-links > div.full-view > div > a.link-item.pmc'
+                full_text_link_selector = '#full-view-identifiers > li:nth-child(2) > span > a'
                 full_text_link = driver.find_element(By.CSS_SELECTOR, full_text_link_selector).get_attribute('href')
                 full_text_links.append(full_text_link)
                 found_link = True
@@ -1525,20 +1531,19 @@ def molecule_data(user_id,max_results):
         if not user:
             return jsonify({"message": "User not found"}), 404
 
-        molecule = Pubchem.query.filter_by(pubchem_cid=pubchem_cid).first()
-        if molecule: 
-            return jsonify({"message": "Molecule already exists in database"}), 409
-        else:
-            new_molecule = Molecule(
-                keyword=keyword,
-                user_id=user_id,
-                date_of_creation=datetime.now()
-            )
-            db.session.add(new_molecule)
-            db.session.flush()  # Flush to get the newly created molecule ID
+        existing_pubchem = Pubchem.query.filter_by(pubchem_cid=results[1]).first()
 
-        # Create a Pubchem record for the new Molecule
-            pubchem = Pubchem(
+        if existing_pubchem:
+            # Existing Pubchem found, so get its associated Molecule
+            molecule = existing_pubchem.molecule
+            molecule.date_of_creation = datetime.now()  # Update the timestamp
+            message = "Molecule updated successfully."
+        else:
+            # No existing Molecule found, create new Molecule, Pubchem, and Pubmed
+            molecule = Molecule(keyword=keyword, user_id=user_id, date_of_creation=datetime.now())
+            db.session.add(molecule)
+            db.session.flush()  # Ensures molecule gets an ID
+            existing_pubchem = Pubchem(
             
                 compoundname=results[0],
                 pubchem_cid=results[1],
@@ -1554,12 +1559,30 @@ def molecule_data(user_id,max_results):
                 half_life=results[11],
                 reactivity=results[12],
                 image_url=results[13],
-                molecule_id=new_molecule.id  # Reference the Molecule record
+                molecule_id=molecule.id  # Reference the Molecule record
                 )
-            db.session.add(pubchem)
-        
-        # Create a Pubmed record for the new Molecule
-            pubmed = Pubmed(
+            message = "Molecule added successfully."
+
+        # Update or set Pubchem data
+        existing_pubchem.compoundname = results[0]
+        existing_pubchem.pubchem_cid = results[1]
+        existing_pubchem.molecular_form = results[2]
+        existing_pubchem.molecular_weight = results[3]
+        existing_pubchem.cas_reg = results[4]
+        existing_pubchem.atc_code = results[5]
+        existing_pubchem.iupac_name = results[6]
+        existing_pubchem.solubility = results[7]
+        existing_pubchem.physical_desc = results[8]
+        existing_pubchem.melting_point = results[9]
+        existing_pubchem.decomposition = results[10]
+        existing_pubchem.half_life = results[11]
+        existing_pubchem.reactivity = results[12]
+        existing_pubchem.image_url = results[13]
+
+        # Update or create Pubmed data
+        existing_pubmed = Pubmed.query.filter_by(molecule_id=molecule.id).first()
+        if not existing_pubmed:
+            existing_pubmed = Pubmed(
         
                 Pharmacodynamics=results2[0],
                 Pharmacodynamics_Drug_Interaction_page=results2[1],
@@ -1568,12 +1591,24 @@ def molecule_data(user_id,max_results):
                 Overview_of_Safety=results2[4],
                 Marketing_Experience=results2[5],
                 Benefits_Risks=results2[6],
-                molecule_id=new_molecule.id  # Reference the Molecule record
+                molecule_id=molecule.id  # Reference the Molecule record
                 )
-            db.session.add(pubmed)
-            db.session.commit()
+        
+        existing_pubmed.Pharmacodynamics = results2[0]
+        existing_pubmed.Pharmacodynamics_Drug_Interaction_page = results2[1]
+        existing_pubmed.Overview_of_Efficacy = results2[2]
+        existing_pubmed.Clinical_Studies = results2[3]
+        existing_pubmed.Overview_of_Safety = results2[4]
+        existing_pubmed.Marketing_Experience = results2[5]
+        existing_pubmed.Benefits_Risks = results2[6]
+
+        db.session.add(existing_pubchem)
+        db.session.add(existing_pubmed)
+        db.session.commit()
+
+
         #print(results2)
-        return jsonify({"message": "Data stored successfully"}), 201
+        return jsonify({"message": message, "molecule_id": molecule.id}), 201
     
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -1712,7 +1747,7 @@ def modify_pubchem(molecule_id):
 # Modify results in database
 @app.route('/modify_molecule/<int:molecule_id>', methods=['PUT'])
 def modify_molecule(molecule_id):
-    # Get the existing molecule
+     # Get the existing molecule
     molecule = get_molecule_by_id(molecule_id)
 
     if molecule is None:
@@ -1721,7 +1756,6 @@ def modify_molecule(molecule_id):
     # Update molecule properties based on the request data
     data = request.get_json()
     molecule.keyword = data.get("keyword", molecule.keyword)
-    #molecule.user_id = data.get("user_id", molecule.user_id)
 
     # Commit the changes to the database
     try:
@@ -1731,40 +1765,37 @@ def modify_molecule(molecule_id):
         return jsonify({"error": "IntegrityError occurred, likely a constraint violation"}), 400
 
     # Update related Pubchem data if available
-    pubchem_data = data.get("pubchem_data")
-    if pubchem_data:
+    if 'pubchem' in data:
+        pubchem_data = data['pubchem']
         pubchem = Pubchem.query.filter_by(molecule_id=molecule_id).first()
         if pubchem:
-            pubchem.compoundname = pubchem_data.get("compoundname", pubchem.compoundname)
-            pubchem.pubchem_cid = pubchem_data.get("pubchem_cid", pubchem.pubchem_cid)
-            pubchem.molecular_form = pubchem_data.get("molecular_form", pubchem.molecular_form)
-            pubchem.molecular_weight = pubchem_data.get("molecular_weight", pubchem.molecular_weight)
-            pubchem.cas_reg = pubchem_data.get("cas_reg", pubchem.cas_reg)
-            pubchem.atc_code = pubchem_data.get("atc_code", pubchem.atc_code)
-            pubchem.iupac_name = pubchem_data.get("iupac_name", pubchem.iupac_name)
-            pubchem.solubility = pubchem_data.get("solubility", pubchem.solubility)
-            pubchem.physical_desc = pubchem_data.get("physical_desc", pubchem.physical_desc)
-            pubchem.melting_point = pubchem_data.get("melting_point", pubchem.melting_point)
-            pubchem.decomposition = pubchem_data.get("decomposition", pubchem.decomposition)
-            pubchem.half_life = pubchem_data.get("half_life", pubchem.half_life)
-            pubchem.reactivity = pubchem_data.get("reactivity", pubchem.reactivity)
+            # Update attributes if they exist in pubchem_data
+            attributes = [
+                "compoundname", "pubchem_cid", "molecular_form", "molecular_weight", 
+                "cas_reg", "atc_code", "iupac_name", "solubility", "physical_desc", 
+                "melting_point", "decomposition", "half_life", "reactivity"
+            ]
+            for attr in attributes:
+                if attr in pubchem_data:
+                    setattr(pubchem, attr, pubchem_data[attr])
 
-
-            # Update other Pubchem fields as needed
             db.session.commit()
 
     # Update related Pubmed data if available
-    pubmed_data = data.get("pubmed_data")
-    if pubmed_data:
+    if 'pubmed' in data:
+        pubmed_data = data['pubmed']
         pubmed = Pubmed.query.filter_by(molecule_id=molecule_id).first()
         if pubmed:
-            pubmed.Pharmacodynamics = pubmed_data.get("Pharmacodynamics", pubmed.Pharmacodynamics)
-            pubmed.Pharmacodynamics_Drug_Interaction_page = pubmed_data.get("Pharmacodynamics_Drug_Interaction_page", pubmed.Pharmacodynamics_Drug_Interaction_page)
-            pubmed.Overview_of_Efficacy = pubmed_data.get("Overview_of_Efficacy", pubmed.Overview_of_Efficacy)
-            pubmed.Clinical_Studies = pubmed_data.get("Clinical_Studies", pubmed.Clinical_Studies)
-            pubmed.Overview_of_Safety = pubmed_data.get("Overview_of_Safety", pubmed.Overview_of_Safety)
-            pubmed.Marketing_Experience = pubmed_data.get("Marketing_Experience", pubmed.Marketing_Experience)
-            pubmed.Benefits_Risks = pubmed_data.get("Benefits_Risks", pubmed.Benefits_Risks) 
+            # Update attributes if they exist in pubmed_data
+            attributes = [
+                "Pharmacodynamics", "Pharmacodynamics_Drug_Interaction_page",
+                "Overview_of_Efficacy", "Clinical_Studies", "Overview_of_Safety",
+                "Marketing_Experience", "Benefits_Risks"
+            ]
+            for attr in attributes:
+                if attr in pubmed_data:
+                    setattr(pubmed, attr, pubmed_data[attr])
+
             db.session.commit()
 
     return jsonify({"message": "Molecule and related data modified successfully"})
@@ -1852,7 +1883,8 @@ def generate_pdf(molecule_id):
     # Add the heading for "PubChem Data"
         heading = Paragraph("<h3>PubChem</h3>", heading_style)
         story.append(heading)
-
+        if pubchem is None:
+            return jsonify({"error": "Pubchem data not found"}), 404
         # Add the PubChem data to the PDF
         content = f"<b>Compound Name:</b> {pubchem.compoundname}<br/><b>Molecular Form:</b> {pubchem.molecular_form}<br/><b>Molecular weight:</b>{pubchem.molecular_weight}<br/><b>CAS registration:</b> {pubchem.cas_reg}<br/><b>ATC code:</b> {pubchem.atc_code}<br/><b>IUPAC name:</b> {pubchem.iupac_name}<br/><b>Solubility:</b> {pubchem.solubility}<br/><b>Physical description:</b> {pubchem.physical_desc}<br/><b>Melting point:</b> {pubchem.melting_point}<br/><b>Decomposition:</b> {pubchem.decomposition}<br/><b>Half life:</b> {pubchem.half_life}<br/><b>Reactivity:</b> {pubchem.reactivity}<br/><br/>"
         story.append(Paragraph(content, normal_style))
@@ -1862,6 +1894,8 @@ def generate_pdf(molecule_id):
         heading = Paragraph("<h3>PubMed</h3>", heading_style)
         story.append(heading)
     # Add the PubMed data to the PDF
+        if pubmed is None:
+            return jsonify({"error": "Pubchem data not found"}), 404
         content = f"<b>Pharmacodynamics:</b> {pubmed.Pharmacodynamics}<br/><br/><b>Overview of Efficacy:</b> {pubmed.Overview_of_Efficacy}<br/><br/><b>Pharmacodynamics Drug Interaction:</b> {pubmed.Pharmacodynamics_Drug_Interaction_page}<br/><br/><b>Clinical Studies:</b> {pubmed.Clinical_Studies}<br/><br/><b>Overview of Safety:</b> {pubmed.Overview_of_Safety}<br/><br/><b>Marketing Experience:</b> {pubmed.Marketing_Experience}<br/><br/><b>Benefits/Risks:</b> {pubmed.Benefits_Risks}<br/><br/><br/>"
         story.append(Paragraph(content,normal_style))
         story.append(Spacer(1, 12))  
@@ -2002,12 +2036,118 @@ def delete_user(user_id):
         traceback.print_exc()
         return jsonify({"error": "An error occurred while deleting the user"}), 500
 
+@app.route('/molecules', methods=['GET'])
+def get_all_molecules():
+    try:
+        # Query all molecules
+        molecules = Molecule.query.all()
+        
+        # Transform the SQLAlchemy objects into a list of dictionaries
+        molecules_list = []
+        for molecule in molecules:
+            user_name = molecule.user.first_name + ' ' + molecule.user.last_name if molecule.user else 'No User'
+            molecules_list.append({
+                'id': molecule.id,
+                'keyword': molecule.keyword,
+                'user_id': molecule.user_id,
+                'date_of_creation': molecule.date_of_creation.strftime("%Y-%m-%d %H:%M:%S"),  # Formatting the datetime object to string
+                'User_name': user_name
+            })
+        
+        # Return the list as JSON
+        return jsonify(molecules_list), 200
+    
+    except Exception as e:
+        # In case of any error, return an error message
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/molecule_info/<int:molecule_id>', methods=['GET'])
+def get_molecule_info(molecule_id):
+    try:
+        # Query for the Molecule by ID
+        molecule = Molecule.query.get(molecule_id)
+        if not molecule:
+            return jsonify({"message": "Molecule not found"}), 404
+        
+        # Assuming the relationships are set up as discussed, 
+        # you can directly access related Pubchem and Pubmed info
+        pubchem_info = {}
+        pubmed_info = {}
+        
+        if molecule.pubchem:
+            pubchem_info = {
+                "compoundname": molecule.pubchem.compoundname,
+                "pubchem_cid": molecule.pubchem.pubchem_cid,
+                "molecular_form": molecule.pubchem.molecular_form,
+                "molecular_weight": molecule.pubchem.molecular_weight,
+                "cas_reg": molecule.pubchem.cas_reg,
+                "atc_code": molecule.pubchem.atc_code,
+                "iupac_name": molecule.pubchem.iupac_name,
+                "solubility": molecule.pubchem.solubility,
+                "physical_desc": molecule.pubchem.physical_desc,
+                "melting_point": molecule.pubchem.melting_point,
+                "decomposition": molecule.pubchem.decomposition,
+                "half_life": molecule.pubchem.half_life,
+                "reactivity": molecule.pubchem.reactivity,
+                "image_url": molecule.pubchem.image_url,
+                # Add other fields as necessary
+            }
+        
+        if molecule.pubmed:
+            pubmed_info = {
+                "Pharmacodynamics": molecule.pubmed.Pharmacodynamics,
+                "Pharmacodynamics_Drug_Interaction_page": molecule.pubmed.Pharmacodynamics_Drug_Interaction_page,
+                "Overview_of_Efficacy": molecule.pubmed.Overview_of_Efficacy,
+                "Clinical_Studies": molecule.pubmed.Clinical_Studies,
+                "Overview_of_Safety": molecule.pubmed.Overview_of_Safety,
+                "Marketing_Experience": molecule.pubmed.Marketing_Experience,
+                "Benefits_Risks": molecule.pubmed.Benefits_Risks,
 
+                # Add other fields as necessary
+            }
 
+        # Combine all info into a single response
+        response = {
+            "molecule": {
+                
+                "keyword": molecule.keyword,
+                "Date": molecule.date_of_creation,
+                # Add other Molecule fields as necessary
+            },
+            "pubchem": pubchem_info,
+            "pubmed": pubmed_info
+        }
+        
+        return jsonify(response), 200
 
+    except Exception as e:
+        return jsonify({"message": "An error occurred", "error": str(e)}), 500
 
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
 
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required'}), 400
+
+    user = User.query.filter_by(username=username).first()
+
+    if user and bcrypt.check_password_hash(user.password.encode('utf-8'), password.encode('utf-8')):
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role.name,
+            'status': user.status,
+            'phone_number': user.phone_number,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'address': user.address
+        }), 200
+    else:
+        return jsonify({'error': 'Invalid credentials'}), 401
 
 
 
